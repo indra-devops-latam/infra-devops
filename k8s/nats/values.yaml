@@ -1,0 +1,14 @@
+replicaCount: 1
+
+image:
+  repository: nats
+  tag: "2.10.26-alpine"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi

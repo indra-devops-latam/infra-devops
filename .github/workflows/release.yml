@@ -1,0 +1,39 @@
+name: Deploy NATS
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - closed
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy_nats_dev:
+    if: github.event.pull_request.merged == true
+    environment: dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Configure EKS access
+        run: aws eks update-kubeconfig --region "${AWS_REGION}" --name "${EKS_CLUSTER}"
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          EKS_CLUSTER: ${{ vars.EKS_CLUSTER_DEV }}
+      - name: Deploy NATS
+        run: |
+          helm upgrade --install nats ./k8s/nats \
+            --namespace nats \
+            --create-namespace \
+            --values ./k8s/nats/values-dev.yaml \
+            --wait \
+            --atomic \
+            --timeout 5m
