@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - develop
+      - master
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy_nats_dev:
+    if: github.ref == 'refs/heads/develop'
+    environment: dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Configure EKS access
+        run: aws eks update-kubeconfig --region "${AWS_REGION}" --name "${EKS_CLUSTER}"
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          EKS_CLUSTER: ${{ vars.EKS_CLUSTER_DEV }}
+      - name: Deploy NATS
+        run: |
+          helm upgrade --install nats ./k8s/nats \
+            --namespace client-gateway \
+            --create-namespace \
+            --values ./k8s/nats/values-dev.yaml \
+            --wait \
+            --atomic \
+            --timeout 5m
+
+  deploy_dev:
+    if: github.ref == 'refs/heads/develop'
+    needs: deploy_nats_dev
+    uses: indra-devops-latam/platform-ci-cd/.github/workflows/publish-deploy.yml@develop
+    with:
+      environment: dev
+      aws_region: ${{ vars.AWS_REGION }}
+      ecr_repository: ${{ vars.ECR_REPOSITORY_DEV }}
+      eks_cluster: ${{ vars.EKS_CLUSTER_DEV }}
+      namespace: client-gateway
+      helm_release: client-gateway
+      chart_path: ./k8s/client-gateway
+      deploy: true
+    secrets: inherit
+
+  deploy_nats_prod:
+    if: github.ref == 'refs/heads/master'
+    environment: prod
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Configure EKS access
+        run: aws eks update-kubeconfig --region "${AWS_REGION}" --name "${EKS_CLUSTER}"
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          EKS_CLUSTER: ${{ vars.EKS_CLUSTER_PROD }}
+      - name: Deploy NATS
+        run: |
+          helm upgrade --install nats ./k8s/nats \
+            --namespace client-gateway \
+            --create-namespace \
+            --values ./k8s/nats/values-prod.yaml \
+            --wait \
+            --atomic \
+            --timeout 5m
+
+  deploy_prod:
+    if: github.ref == 'refs/heads/master'
+    needs: deploy_nats_prod
+    uses: indra-devops-latam/platform-ci-cd/.github/workflows/publish-deploy.yml@develop
+    with:
+      environment: prod
+      aws_region: ${{ vars.AWS_REGION }}
+      ecr_repository: ${{ vars.ECR_REPOSITORY_PROD }}
+      eks_cluster: ${{ vars.EKS_CLUSTER_PROD }}
+      namespace: client-gateway
+      helm_release: client-gateway
+      chart_path: ./k8s/client-gateway/Chart.yaml
+      deploy: true
+    secrets: inherit
