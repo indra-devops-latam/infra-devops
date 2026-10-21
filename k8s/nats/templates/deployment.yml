@@ -30,13 +30,13 @@ spec:
               protocol: TCP
           livenessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: monitoring
             initialDelaySeconds: 10
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: monitoring
             initialDelaySeconds: 5
             periodSeconds: 5
